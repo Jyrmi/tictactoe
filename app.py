@@ -3,7 +3,7 @@ import bcrypt
 import sqlite3
 import jwt
 from constants import SECRET_KEY
-from models import db, User
+from models import db, User, Game, GamePlayer
 from email_validator import validate_email, EmailNotValidError
 
 # Create a Flask web application
@@ -14,6 +14,49 @@ app = Flask(__name__)
 @app.route("/")
 def hello_world():
     return "Hello, World!"
+    
+
+@app.route("/games", methods=["POST"])
+def games():  # also post
+    if request.method == "POST":
+        # Authorization: "Bearer <JWT>"
+        authorization_header = request.headers.get("Authorization")
+
+        if not authorization_header:
+            return jsonify({ message: "Authorization Header is not present." }), 401
+
+        try:
+            jwt_token = jwt.decode(authorization_header[len("Bearer") + 1:], SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({ message: "JWT has expired." }), 403
+        except:
+            return jsonify({ message: "Failed to decode JWT." }), 403
+
+        user_id = jwt_token["user_id"]
+
+        # Create the game in the database
+        new_game = Game()
+        new_game.save()
+        game_id = new_game.get_id()
+
+        # Create the creating player in the database
+        new_player = GamePlayer(user_id=user_id, game_id=game_id, is_creator=True)
+        new_player.save()
+
+        response = {
+            "ok": True,
+            "message": "Game created successfully",
+            "data": { 'game_id': game_id },
+        }
+
+        return jsonify(response), 201
+
+    response = {
+        "ok": False,
+        "message": "Unsupported HTTP method",
+    }
+
+    return jsonify(response), 400
 
 
 # implement user signup
@@ -111,7 +154,7 @@ def sign_in():  # also post
 
 def initialize_db():
     db.connect()
-    db.create_tables([User])
+    db.create_tables([User, Game, GamePlayer])
 
 
 # Run the application if this script is executed
